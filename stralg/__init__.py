@@ -1,0 +1,4 @@
+"""
+String algorithms in Python.
+
+"""
