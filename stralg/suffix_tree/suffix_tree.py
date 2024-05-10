@@ -124,11 +124,13 @@ class SuffixTree:
             # when we can't map, we don't get hits
             return
 
-        n, j, _, y = tree_search(self.root, p_)
-        if len(j) == len(y):
-            # We search all the way through the last string,
-            # so we have a match
-            yield from iter(n)
+        match tree_search(self.root, p_):
+            case node(n, y) if not y:
+                yield from iter(n)
+            case edge(n, z, _, y) if len(z) == len(y):
+                yield from iter(n)
+            case _:
+                pass
 
     def __contains__(self, p: str) -> bool:
         """Test if string p is in the tree."""
@@ -165,45 +167,35 @@ def shared_prefix(x: memoryview, y: memoryview) -> memoryview:
 
 
 @dataclass
-class NodeResult:
+class node:
     node: Inner
     remaining_query: memoryview
-    complete_match: bool
 
 
 @dataclass
-class EdgeResult:
+class edge:
     node: Node
     matched: memoryview
     rest_of_edge: memoryview
     remaining_query: memoryview
-    complete_match: bool
 
 
-SearchResult = NodeResult | EdgeResult
+SearchResult = node | edge
 
 
-def tree_search(
-    n: Inner, p: memoryview
-) -> tuple[Node, memoryview, memoryview, memoryview]:
-    """Search for p down the tree rooted in n.
-
-    Returns
-        - The node we tried to search towards (or from if we cannot get out of a node)
-        - The pattern we tried to match (a suffix of p)
-        - The part of the edge we could match
-        - The part of the edge remaining.
-    """
+def tree_search(n: Inner, p: memoryview) -> SearchResult:
+    """Search for p down the tree rooted in n."""
     while p and p[0] in n.children:
         child = n.out_child(p)
-        q = shared_prefix(child.edge_label, p)
-        if len(q) == len(p) or len(q) < len(child.edge_label):
-            return child, q, child.edge_label[len(q) :], p
+        z: memoryview = shared_prefix(child.edge_label, p)
+        if len(z) == len(p) or len(z) < len(child.edge_label):
+            w = child.edge_label[len(z) :]  # the edge is z + w
+            return edge(child, z, w, p)
 
         assert is_inner(child)
-        n, p = child, p[len(q) :]
+        n, p = child, p[len(z) :]
 
-    return n, p[0:0], p[0:0], p
+    return node(n, p)
 
 
 def tree_fastsearch(n: Inner, p: memoryview) -> tuple[Node, int, memoryview]:
@@ -261,29 +253,13 @@ def naive_st_construction(s: String) -> SuffixTree:
 
     # Insert suffixes one at a time...
     for i in range(len(x)):
-        n, j, _, y = tree_search(root, x[i:])
-        if len(j) == 0:
-            # We couldn't get out of the node
-            assert is_inner(n)
-            n.add_children(Leaf(i, y))
-        elif len(j) < len(y):
-            # We had a mismatch on the edge
-            break_edge(i, n, len(j), y[len(j) :])
-        else:  # pragma: no cover
-            # With the sentinel, we should never match completely
-            assert False, "We can't match completely here"
-
-        # n, y, j, z = tree_search(root, x[i:])
-        # if z is None:
-        #     # We couldn't get out of the node
-        #     assert is_inner(n)
-        #     n.add_children(Leaf(i, y))
-        # elif len(j) < len(y):
-        #     # We had a mismatch on the edge
-        #     break_edge(i, n, len(j), z)
-        # else:  # pragma: no cover
-        #     # With the sentinel, we should never match completely
-        #     assert False, "We can't match completely here"
+        match tree_search(root, x[i:]):
+            case node(n, y) if y:
+                n.add_children(Leaf(i, y))
+            case edge(n, z, w, y) if len(z) < len(y):
+                break_edge(i, n, len(z), w)
+            case _:  # pragma: no cover
+                assert False, "We can't match completely here"
 
     return SuffixTree(s, root)
 
@@ -359,26 +335,15 @@ def mccreight_st_construction(s: String) -> SuffixTree:
 
         # If we are here, we need to slow-scan, and we do that by
         # searching from y_node after the remainder of the suffix, z.
-        n, j, _, w_res = tree_search(z_node, w)
-        assert len(j) != len(w_res), "We can't match completely here."
-        if len(j) == 0:
-            # Mismatch on a node...
-            assert isinstance(n, Inner), "Mismatch on a node must be on an inner node."
-            v = Leaf(i, w_res)
-            n.add_children(v)
-        elif len(j) < len(w_res):
-            # Mismatch on an edge
-            v = break_edge(i, n, len(j), w_res[len(j) :])
-        # n, w_res, j, _ = tree_search(z_node, w)
-        # assert j != len(w_res), "We can't match completely here."
-        # if len(j) == 0:
-        #     # Mismatch on a node...
-        #     assert isinstance(n, Inner), "Mismatch on a node must be on an inner node."
-        #     v = Leaf(i, w_res)
-        #     n.add_children(v)
-        # elif len(j) < len(w_res):
-        #     # Mismatch on an edge
-        #     v = break_edge(i, n, len(j), w_res[len(j) :])
+
+        match tree_search(z_node, w):
+            case node(n, y) if y:
+                v = Leaf(i, y)
+                n.add_children(v)
+            case edge(n, z, w, y) if len(z) < len(y):
+                v = break_edge(i, n, len(z), y[len(z) :])
+            case _:  # pragma: no cover
+                assert False, "We can't match completely here"
 
     return SuffixTree(s, root)
 
