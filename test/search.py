@@ -2,6 +2,8 @@
 Functions for testing plain search algorithms.
 """
 
+import random
+import string
 from typing import Callable as Fn
 from typing import Iterable
 
@@ -61,3 +63,25 @@ def small_search_suite(search: SearchAlgorithm) -> None:
     p = "abracadabrax"
     expected = []
     _cmp_results(x, p, search(x, p), expected)
+
+
+def random_string_suite(search: SearchAlgorithm) -> None:
+    """
+    Test the search algorithm with random strings.
+    """
+
+    for _ in range(100):
+        n = random.randint(1, 100)
+        m = random.randint(1, n)
+        x = "".join(random.choices(string.ascii_lowercase, k=n))
+        p = "".join(random.choices(string.ascii_lowercase, k=m))
+        expected = [i for i in range(n) if x[i : i + m] == p]
+        _cmp_results(x, p, search(x, p), expected)
+
+
+def search_suite(search: SearchAlgorithm) -> None:
+    """
+    Run the search suite.
+    """
+    small_search_suite(search)
+    random_string_suite(search)

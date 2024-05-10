@@ -3,5 +3,6 @@
         "stralg"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "pytest.command": "python -m pytest",
 }
