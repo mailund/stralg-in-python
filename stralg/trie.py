@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
-from typing import NamedTuple, Optional, cast
+from typing import NamedTuple, Optional
 
 LS = NamedTuple("LS", [("label", int), ("x", memoryview)])
 
@@ -119,43 +118,4 @@ def depth_first_trie(*strings: str) -> Trie:
     for i, x in enumerate(strings):
         trie.insert(x, i)
 
-    # If we want the suffix link and out list as well,
-    # we need a breadth first traversal for that.
-    queue = deque[TrieNode]([trie.root])
-    while queue:
-        n = queue.popleft()
-        for out_edge, child in n.children.items():
-            set_suffix_link(child, out_edge)
-            queue.append(child)
-
     return trie
-
-
-def set_suffix_link(node: TrieNode, in_edge: str) -> None:
-    """Traverse trie to set up suffix-links and out-lists."""
-    # We get the suffix link by running up the links from the
-    # parent and trying to extend them. Casts are for the type
-    # checker, telling them that nodes are not None
-    parent = cast(TrieNode, node.parent)
-    if parent.is_root:
-        node.suffix_link = parent
-    else:
-        slink = cast(TrieNode, parent.suffix_link)
-        while in_edge not in slink:
-            if slink.is_root:
-                # it is the root and we can't extend.
-                node.suffix_link = slink
-                break
-            slink = cast(TrieNode, slink.suffix_link)
-        else:
-            # If we break to here, we can extend.
-            node.suffix_link = slink[in_edge]
-
-    # The suffix link for non-roots should never be None
-    assert node.suffix_link is not None
-
-    # The out list either skips suffix_link or not, depending on
-    # whether there is a label there or not. The out_list can be None.
-    # We terminate the lists with a None.
-    slink = node.suffix_link
-    node.out_list = slink if slink.label is not None else slink.out_list
