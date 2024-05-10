@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Optional, TypeGuard, cast
+from typing import Any, Iterator, Optional, TypeGuard
 
 from ..views import Alphabet, String
 
@@ -198,24 +198,20 @@ def tree_search(n: Inner, p: memoryview) -> SearchResult:
     return node(n, p)
 
 
-def tree_fastsearch(n: Inner, p: memoryview) -> tuple[Node, int, memoryview]:
+def tree_fastsearch(n: Inner, p: memoryview) -> SearchResult:
     """Do a fast scan after p starting at n."""
-    # In the special case that x is empty (which we guarantee
-    # that it isn't after this point), we match the entire
-    # local tree, so we have to report that.
-    if not p:
-        return n, 0, p
-
-    while True:
+    while p:
         assert p[0] in n.children, "With fast scan, there should always be an out-edge"
         child = n.out_child(p)
         # This is the fast scan jump (instead of scanning)
         i = min(len(child.edge_label), len(p))
         if i == len(p):
-            return child, i, p
+            return edge(child, child.edge_label[:i], child.edge_label[i:], p)
 
         assert is_inner(child)
         n, p = child, p[i:]
+
+    return node(n, p)
 
 
 def break_edge(leaf_label: int, n: Node, k: int, z: memoryview) -> Leaf:
@@ -318,28 +314,26 @@ def mccreight_st_construction(s: String) -> SuffixTree:
             z = p.edge_label if p.parent is not root else p.edge_label[1:]
             w = v.edge_label
 
-            # Fast scan to new starting point
-            n, j, z_res = tree_fastsearch(p.parent.suffix_link, z)
-            assert j == len(z_res), "Fast scan should always find a match"
-            z_node = cast(Inner, n)  # For type checker...
+            # Fast scan to new starting point, z_node. Short-circuit if the mismatch is on an edge
+            match tree_fastsearch(p.parent.suffix_link, z):
+                case edge(z_node, match, rest, _) if len(rest) > 0:
+                    # mismatch on the edge so we can break immidiately
+                    v = break_edge(i, z_node, len(match), w)
+                    p.suffix_link = v.parent
+                    continue  # Process next suffix...
 
-            if len(z_node.edge_label) != j:
-                # We ended the search on an edge, so we can directly
-                # insert the new leaf
-                v = break_edge(i, z_node, j, w)
-                p.suffix_link = v.parent
-                continue  # Process next suffix...
+                case edge(z_node, _, _, _) | node(z_node, _):
+                    # mostly for type checking, but it should always be true
+                    assert is_inner(z_node)
 
-            # If we landed on a node, then that is p's suffix link
-            p.suffix_link = z_node
+                    # If we landed on a node, then that is p's suffix link
+                    p.suffix_link = z_node
 
         # If we are here, we need to slow-scan, and we do that by
         # searching from y_node after the remainder of the suffix, z.
-
         match tree_search(z_node, w):
             case node(n, y) if y:
-                v = Leaf(i, y)
-                n.add_children(v)
+                n.add_children(v := Leaf(i, y))
             case edge(n, z, w, y) if len(z) < len(y):
                 v = break_edge(i, n, len(z), y[len(z) :])
             case _:  # pragma: no cover
