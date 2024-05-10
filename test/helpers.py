@@ -11,7 +11,7 @@ def collect_tests(tests: Iterable[tuple[str, Fn[..., None]]]) -> type:
     return type(
         "__generated_class__",
         (object,),
-        {("test_" + name): (lambda _self: f()) for name, f in tests},
+        {("test_" + name): (lambda _self: f()) for name, f in tests},  # type: ignore
     )
 
 
