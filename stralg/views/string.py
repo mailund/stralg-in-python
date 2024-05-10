@@ -2,6 +2,20 @@
 Strings that are mapped to bytearrays using an alphabet.
 """
 
-from typing import NewType
+from dataclasses import dataclass
 
-string = NewType("string", bytearray)  # A string mapped to a bytearray.
+from .alphabet import Alphabet
+
+
+@dataclass
+class String:
+    alpha: Alphabet
+    x: bytearray
+
+    def __str__(self):
+        return self.alpha.decode(self.x)
+
+    @property
+    def view(self) -> memoryview:
+        """Return a view of the string."""
+        return memoryview(self.x)

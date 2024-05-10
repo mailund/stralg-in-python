@@ -4,12 +4,13 @@ from .alphabet import Alphabet
 def test_alphabet() -> None:
     """Test the alphabet class."""
     for x in ["foo", "bar", "baz", "foobar", "bazfoo"]:
-        y, alpha = Alphabet.map_string(x, with_sentinel=False)
+        y = Alphabet.map_string(x, with_sentinel=False)
         assert len(x) == len(y)
-        assert len(alpha) == len(set(x)) + 1
-        assert alpha.revmap(y) == x
+        assert len(y.alpha) == len(set(x)) + 1
+        assert str(y) == x
 
-        y, alpha = Alphabet.map_string(x, with_sentinel=True)
+        y = Alphabet.map_string(x, with_sentinel=True)
         assert len(x) == len(y) - 1
-        assert len(alpha) == len(set(x)) + 1
-        assert alpha.revmap(y[:-1]) == x
+        assert len(y.alpha) == len(set(x)) + 1
+        assert str(y[:-1]) == x
+        assert str(y[0]) == x[0]
