@@ -3,46 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterator, Optional, cast
+from typing import Any, Iterator, Optional, TypeGuard, cast
 
-from ..views import Alphabet
+from ..views import Alphabet, String
 
 # SECTION Suffix Tree representation
 
-# You don't need separate leaf/inner classes, but you get a little
-# type checking if you have them. You also save a little space by
-# not having all the attributes in a combined class.
-
 
 @dataclass
-class Node:  # Should be abc ABC, but doesn't work with type checker
-    """
-    Representation of a node in a suffix tree.
-
-    This is an abstract class. Concrete nodes are either Inner of Leaf.
-    """
+class Inner:
+    """An inner node."""
 
     edge_label: memoryview  # slice of underlying bytearray
     parent: Optional[Inner] = field(default=None, init=False, repr=False)
-
-    # These methods are only here for the type checker.
-    # They will never be used because we never have Node objects.
-    def __iter__(
-        self,
-    ) -> Iterator[int]:  # noqa: pylint: disable=non-iterator-returned
-        """Iterate through all the leaves in the tree rooted in this node."""
-        ...  # pragma no cover
-
-    def to_dot(
-        self, alpha: Alphabet
-    ) -> Iterator[str]:  # noqa: no-self-use, pylint: disable=no-self-use
-        """Represent the tree rooted in this node as dot."""
-        ...  # pragma no cover
-
-
-@dataclass
-class Inner(Node):
-    """An inner node."""
 
     suffix_link: Optional[Inner] = field(default=None, init=False, repr=False)
     children: dict[int, Node] = field(default_factory=dict, init=False, repr=False)
@@ -80,33 +53,31 @@ class Inner(Node):
 
     def __eq__(self, other: object) -> bool:
         """Test if two nodes are equivalent."""
-        if not isinstance(other, Inner):  # pragma: no cover
-            return False
-        assert isinstance(other, Inner)  # For the type checker
-
-        if self.edge_label != other.edge_label:
+        if (
+            not is_inner(other) or self.edge_label != other.edge_label
+        ):  # pragma: no cover
             return False
 
         # Equal if sorted children are equal.
         my_children = list(sorted(self.children.items()))
         others_children = list(sorted(other.children.items()))
-        if len(my_children) != len(others_children):
-            return False
-        return all(a == b for a, b in zip(my_children, others_children))
+        return len(my_children) == len(others_children) and all(
+            a == b for a, b in zip(my_children, others_children)
+        )
 
 
-@dataclass(init=False)
-class Leaf(Node):
+class Leaf:
     """A leaf in a suffix tree."""
+
+    edge_label: memoryview  # slice of underlying bytearray
+    parent: Optional[Inner] = field(default=None, init=False, repr=False)
 
     leaf_label: int
 
-    # Explicit __init__ because I prefer to have the
-    # leaf_label before the edge_label
     def __init__(self, leaf_label: int, edge_label: memoryview):
         """Create a leaf."""
-        super().__init__(edge_label)
         self.leaf_label = leaf_label
+        self.edge_label = edge_label
 
     def to_dot(self, alpha: Alphabet) -> Iterator[str]:
         """Get the dot representation of the leaf."""
@@ -120,49 +91,53 @@ class Leaf(Node):
 
     def __eq__(self, other: object) -> bool:
         """Test if two nodes are equivalent."""
-        if not isinstance(other, Leaf):  # pragma: no cover
-            return False
-        return (
+        return is_leaf(other) and (
             self.edge_label == other.edge_label and self.leaf_label == other.leaf_label
         )
+
+
+Node = Inner | Leaf
+
+
+def is_inner(n: Any) -> TypeGuard[Inner]:
+    """Test if a node is an inner node."""
+    return isinstance(n, Inner)
+
+
+def is_leaf(n: Any) -> TypeGuard[Leaf]:
+    """Test if a node is a leaf."""
+    return isinstance(n, Leaf)
 
 
 @dataclass
 class SuffixTree:
     """A suffix tree."""
 
-    alpha: Alphabet
+    s: String
     root: Inner
 
     def search(self, p: str) -> Iterator[int]:
         """Find all occurences of p in the suffix tree."""
         try:
-            p_ = self.alpha.as_string(p).view
+            p_ = self.s.alpha.as_string(p).view
         except KeyError:
             # when we can't map, we don't get hits
             return
 
-        n, j, y = tree_search(self.root, p_)
-        if j == len(y):
+        n, j, _, y = tree_search(self.root, p_)
+        if len(j) == len(y):
             # We search all the way through the last string,
             # so we have a match
             yield from iter(n)
 
     def __contains__(self, p: str) -> bool:
         """Test if string p is in the tree."""
-        try:
-            p_ = self.alpha.as_string(p).view
-        except KeyError:
-            # when we can't map, we don't get hits
-            return False
-
-        _, j, y = tree_search(self.root, p_)
-        return j == len(y)
+        return next(self.search(p), -1) != -1
 
     def to_dot(self) -> str:
         """Get a dot representation of a tree."""
         return (
-            'digraph { rankdir="LR" ' + "\n".join(self.root.to_dot(self.alpha)) + "}"
+            'digraph { rankdir="LR" ' + "\n".join(self.root.to_dot(self.s.alpha)) + "}"
         )  # noqa
 
     def __eq__(self, other: object) -> bool:
@@ -177,56 +152,68 @@ class SuffixTree:
 # SECTION Searching in a suffix tree
 
 
-def first_mismatch(x: memoryview, y: memoryview) -> int:
+def shared_prefix(x: memoryview, y: memoryview) -> memoryview:
     """
-    Return how far along x and y we can match.
-
-    Return index of first mismatch.
+    Return the shared prefix of x and y.
     """
-    i = -1  # Handle special case with empty string
     for i, (a, b) in enumerate(zip(x, y)):
         if a != b:
-            return i
-    return i + 1  # matched all the way through
+            return x[:i]
+    else:
+        # matched all the way through. Return the shortest string
+        return x if len(x) < len(y) else y
 
 
-# FIXME: I think this would be nicer with classes and pattern matching...
-SearchResult = tuple[Node, int, memoryview]
-# This is the node we last searched on, how far down
-# the edge we got (or zero if we couldn't leave the
-# node), and the last string we searched.
+@dataclass
+class NodeResult:
+    node: Inner
+    remaining_query: memoryview
+    complete_match: bool
 
 
-def tree_search(n: Inner, p: memoryview) -> SearchResult:
-    """Search for p down the tree rooted in n."""
-    # In the special case that p is empty (which we guarantee
-    # that it isn't after this point), we match the entire
-    # local tree, so we have to report that.
-    if not p:
-        return n, 0, p
+@dataclass
+class EdgeResult:
+    node: Node
+    matched: memoryview
+    rest_of_edge: memoryview
+    remaining_query: memoryview
+    complete_match: bool
 
-    while True:
-        if p[0] not in n.children:
-            return n, 0, p
 
+SearchResult = NodeResult | EdgeResult
+
+
+def tree_search(
+    n: Inner, p: memoryview
+) -> tuple[Node, memoryview, memoryview, memoryview]:
+    """Search for p down the tree rooted in n.
+
+    Returns
+        - The node we tried to search towards (or from if we cannot get out of a node)
+        - The pattern we tried to match (a suffix of p)
+        - The part of the edge we could match
+        - The part of the edge remaining.
+    """
+    while p and p[0] in n.children:
         child = n.out_child(p)
-        i = first_mismatch(child.edge_label, p)
-        if i == len(p) or i < len(child.edge_label):
-            return child, i, p
+        q = shared_prefix(child.edge_label, p)
+        if len(q) == len(p) or len(q) < len(child.edge_label):
+            return child, q, child.edge_label[len(q) :], p
 
-        assert isinstance(
-            child, Inner
-        ), "We can only continue searching from an inner node"
-        n, p = child, p[i:]
+        assert is_inner(child)
+        n, p = child, p[len(q) :]
+
+    return n, p[0:0], p[0:0], p
 
 
-def tree_fastsearch(n: Inner, p: memoryview) -> SearchResult:
+def tree_fastsearch(n: Inner, p: memoryview) -> tuple[Node, int, memoryview]:
     """Do a fast scan after p starting at n."""
     # In the special case that x is empty (which we guarantee
     # that it isn't after this point), we match the entire
     # local tree, so we have to report that.
     if not p:
         return n, 0, p
+
     while True:
         assert p[0] in n.children, "With fast scan, there should always be an out-edge"
         child = n.out_child(p)
@@ -235,12 +222,8 @@ def tree_fastsearch(n: Inner, p: memoryview) -> SearchResult:
         if i == len(p):
             return child, i, p
 
-        assert isinstance(
-            child, Inner
-        ), "We can only continue searching from an inner node"
+        assert is_inner(child)
         n, p = child, p[i:]
-
-    assert False, "We should never get here"
 
 
 def break_edge(leaf_label: int, n: Node, k: int, z: memoryview) -> Leaf:
@@ -266,34 +249,43 @@ def break_edge(leaf_label: int, n: Node, k: int, z: memoryview) -> Leaf:
 # SECTION Naive construction algorithm
 
 
-def naive_st_construction(s: str) -> SuffixTree:
+def naive_st_construction(s: String) -> SuffixTree:
     """
     Naive construction algorithm.
 
     Construct a suffix tree by searching from the root
     down to the insertion point for each suffix in `s`.
     """
-    x_ = Alphabet.map_string(s, with_sentinel=True)
-    x = x_.view
+    x = s.view
     root = Inner(x[0:0])
 
     # Insert suffixes one at a time...
     for i in range(len(x)):
-        n, j, y = tree_search(root, x[i:])
-        if j == 0:
+        n, j, _, y = tree_search(root, x[i:])
+        if len(j) == 0:
             # We couldn't get out of the node
-            assert isinstance(
-                n, Inner
-            ), "If we can't get out of a node, it is an inner node."
+            assert is_inner(n)
             n.add_children(Leaf(i, y))
-        elif j < len(y):
+        elif len(j) < len(y):
             # We had a mismatch on the edge
-            break_edge(i, n, j, y[j:])
+            break_edge(i, n, len(j), y[len(j) :])
         else:  # pragma: no cover
             # With the sentinel, we should never match completely
             assert False, "We can't match completely here"
 
-    return SuffixTree(x_.alpha, root)
+        # n, y, j, z = tree_search(root, x[i:])
+        # if z is None:
+        #     # We couldn't get out of the node
+        #     assert is_inner(n)
+        #     n.add_children(Leaf(i, y))
+        # elif len(j) < len(y):
+        #     # We had a mismatch on the edge
+        #     break_edge(i, n, len(j), z)
+        # else:  # pragma: no cover
+        #     # With the sentinel, we should never match completely
+        #     assert False, "We can't match completely here"
+
+    return SuffixTree(s, root)
 
 
 # !SECTION
@@ -301,7 +293,7 @@ def naive_st_construction(s: str) -> SuffixTree:
 # SECTION McCreights construction algorithm
 
 
-def mccreight_st_construction(s: str) -> SuffixTree:
+def mccreight_st_construction(s: String) -> SuffixTree:
     """
     Construct a suffix tree with McCreight's algorithm.
 
@@ -309,8 +301,7 @@ def mccreight_st_construction(s: str) -> SuffixTree:
     down to the insertion point for each suffix in `s`,
     but exploiting suffix links and fast scan along the way.
     """
-    x_ = Alphabet.map_string(s, with_sentinel=True)
-    x = x_.view
+    x = s.view
     root = Inner(x[0:0])
     v = Leaf(0, x)
     root.add_children(v)
@@ -363,28 +354,33 @@ def mccreight_st_construction(s: str) -> SuffixTree:
                 p.suffix_link = v.parent
                 continue  # Process next suffix...
 
-            # The result was on a node, and we continue from there
-            # (using two variables make the type checker happier).
-            assert isinstance(
-                z_node, Inner
-            ), "A mismatch on a node means that it is an inner node."
             # If we landed on a node, then that is p's suffix link
             p.suffix_link = z_node
 
         # If we are here, we need to slow-scan, and we do that by
         # searching from y_node after the remainder of the suffix, z.
-        n, j, w_res = tree_search(z_node, w)
-        assert j != len(w_res), "We can't match completely here."
-        if j == 0:
+        n, j, _, w_res = tree_search(z_node, w)
+        assert len(j) != len(w_res), "We can't match completely here."
+        if len(j) == 0:
             # Mismatch on a node...
             assert isinstance(n, Inner), "Mismatch on a node must be on an inner node."
             v = Leaf(i, w_res)
             n.add_children(v)
-        elif j < len(w_res):
+        elif len(j) < len(w_res):
             # Mismatch on an edge
-            v = break_edge(i, n, j, w_res[j:])
+            v = break_edge(i, n, len(j), w_res[len(j) :])
+        # n, w_res, j, _ = tree_search(z_node, w)
+        # assert j != len(w_res), "We can't match completely here."
+        # if len(j) == 0:
+        #     # Mismatch on a node...
+        #     assert isinstance(n, Inner), "Mismatch on a node must be on an inner node."
+        #     v = Leaf(i, w_res)
+        #     n.add_children(v)
+        # elif len(j) < len(w_res):
+        #     # Mismatch on an edge
+        #     v = break_edge(i, n, len(j), w_res[len(j) :])
 
-    return SuffixTree(x_.alpha, root)
+    return SuffixTree(s, root)
 
 
 # !SECTION
@@ -403,10 +399,9 @@ def search_up(n: Node, length: int) -> tuple[Node, int]:
     return n, depth
 
 
-def lcp_st_construction(s: str, sa: list[int], lcp: list[int]) -> SuffixTree:
+def lcp_st_construction(s: String, sa: list[int], lcp: list[int]) -> SuffixTree:
     """Construct a suffix tree from the suffix and lcp arrays."""
-    x_ = Alphabet.map_string(s, with_sentinel=True)
-    x = x_.view
+    x = s.view
     root = Inner(x[0:0])
     v = Leaf(sa[0], x[sa[0] :])
     root.add_children(v)
@@ -422,7 +417,7 @@ def lcp_st_construction(s: str, sa: list[int], lcp: list[int]) -> SuffixTree:
         else:
             v = break_edge(sa[i], n, depth, x[sa[i] + lcp[i] :])
 
-    return SuffixTree(x_.alpha, root)
+    return SuffixTree(s, root)
 
 
 # !SECTION

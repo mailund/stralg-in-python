@@ -24,12 +24,12 @@ def set_suffix_link(node: TrieNode, in_edge: str) -> None:
     # parent and trying to extend them. Asserts are for the type
     # checker, telling them that nodes are not None
     assert node.parent is not None
-    assert node.parent.suffix_link is not None
 
     if node.parent.is_root:
         node.suffix_link = node.parent
     else:
         slink = node.parent.suffix_link
+        assert slink is not None
         while in_edge not in slink:
             if slink.is_root:
                 # it is the root and we can't extend.

@@ -5,3 +5,4 @@ Mapping strings to arrays of bytes with control over the alphabet.
 """
 
 from .alphabet import Alphabet as Alphabet
+from .alphabet import String as String

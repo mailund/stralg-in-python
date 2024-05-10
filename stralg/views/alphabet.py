@@ -9,7 +9,7 @@ from typing import Iterable
 @dataclass
 class String:
     alpha: Alphabet
-    x: bytearray
+    x: bytearray | memoryview
 
     def __str__(self):
         return self.alpha.decode(self.x)
@@ -31,7 +31,7 @@ class String:
             case slice():
                 return String(self.alpha, self.x[i])
             case int():
-                return String(self.alpha, self.x[i : i + 1])
+                return String(self.alpha, self.view[i : i + 1])
 
     @property
     def view(self) -> memoryview:
@@ -98,7 +98,7 @@ class Alphabet:
         return String(self, self.encode(x, with_sentinel=with_sentinel))
 
     @staticmethod
-    def map_string(x: str, *, with_sentinel: bool = False) -> String:
+    def map_string(x: str, *, with_sentinel: bool = True) -> String:
         """
         Create mapped string with corresponding alphabet.
 

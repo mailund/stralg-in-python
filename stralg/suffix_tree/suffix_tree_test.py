@@ -26,9 +26,9 @@ from stralg.suffix_tree.suffix_tree import (  # lcp_st_construction,
     mccreight_st_construction,
     naive_st_construction,
 )
-from stralg.views import Alphabet
+from stralg.views import Alphabet, String
 
-STConstructor = Fn[[str], SuffixTree]
+STConstructor = Fn[[String], SuffixTree]
 
 
 # def lcp_construction_wrapper(x: str) -> SuffixTree:
@@ -50,11 +50,11 @@ def strip_algo_name(name: str) -> str:
     return name.split("_")[0]
 
 
-def check_to_dot(x: str, algo: STConstructor) -> Fn[[], None]:
+def check_to_dot(s: str, algo: STConstructor) -> Fn[[], None]:
     """Check that we can write to dot."""
 
     def test() -> None:
-        algo(x).to_dot()
+        algo(Alphabet.map_string(s)).to_dot()
 
     return test
 
@@ -67,7 +67,7 @@ TestMississippiToDo = collect_tests(
 
 def test_contains() -> None:
     """Check a suffix tree's contain method."""
-    st = mccreight_st_construction("mississippi")
+    st = mccreight_st_construction(Alphabet.map_string("mississippi"))
     assert "iss" in st
     assert "sss" not in st
     assert "ip" in st
@@ -80,14 +80,17 @@ def check_st_sorted(algo: STConstructor) -> Fn[[], None]:
     def test() -> None:
         for _ in range(10):
             x = random_string(20, alpha="abc")
+            s = Alphabet.map_string(x)
             # using the leaf iterator
-            check_sorted(x, list(algo(x).root))
+            check_sorted(x, list(algo(s).root))
         for fib in range(5, 10):
             x = fibonacci_string(fib)
-            check_sorted(x, list(algo(x).root))
+            s = Alphabet.map_string(x)
+            check_sorted(x, list(algo(s).root))
         for n in range(5, 50):
             x = "a" * n
-            check_sorted(x, list(algo(x).root))
+            s = Alphabet.map_string(x)
+            check_sorted(x, list(algo(s).root))
 
     return test
 
@@ -122,13 +125,13 @@ def check_equal_mccreight(algo: STConstructor) -> Fn[[], None]:
 
     def test() -> None:
         for _ in range(10):
-            x = random_string(20, alpha="abc")
+            x = Alphabet.map_string(random_string(20, alpha="abc"))
             assert mccreight_st_construction(x) == algo(x)
         for fib in range(5, 10):
-            x = fibonacci_string(fib)
+            x = Alphabet.map_string(fibonacci_string(fib))
             assert mccreight_st_construction(x) == algo(x)
         for n in range(5, 50):
-            x = "a" * n
+            x = Alphabet.map_string("a" * n)
             assert mccreight_st_construction(x) == algo(x)
 
     return test
@@ -143,7 +146,7 @@ def check_occurrences(algo: STConstructor) -> Fn[[], None]:
     """Check searching with suffix trees."""
 
     def st_search(x: str, p: str) -> Iterator[int]:
-        return algo(x).search(p)
+        return algo(Alphabet.map_string(x)).search(p)
 
     def test() -> None:
         for _ in range(10):
@@ -169,9 +172,10 @@ def check_against_bmh(algo: STConstructor) -> Fn[[], None]:
     """Check that suffix trees find the same matches as BMH."""
 
     def st_search(x: str, p: str) -> Iterator[int]:
-        print(algo(x).search(p))
-        print(list(algo(x).search(p)))
-        return algo(x).search(p)
+        s = Alphabet.map_string(x)
+        print(algo(s).search(p))
+        print(list(algo(s).search(p)))
+        return algo(s).search(p)
 
     def test() -> None:
         for _ in range(10):
