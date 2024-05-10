@@ -12,6 +12,6 @@ def plain(x: str, p: str) -> Iterator[int]:
 
     If n = len(x) and m = len(p), the time complexity of this algorithm is O(n * m).
     """
-    for i in range(len(x) - len(p) + 1):  # runs O(n) times
+    for i in range(len(x) - len(p) + 1):  # runs O(n - m) times
         if x[i : i + len(p)] == p:  # comparison in O(m)
             yield i
