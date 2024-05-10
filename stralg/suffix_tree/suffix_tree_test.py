@@ -16,6 +16,8 @@ from typing import Callable as Fn
 from typing import Iterator
 
 from stralg.searching import bmh
+from stralg.suffix_tree.mccreight import mccreight_st_construction
+from stralg.suffix_tree.naive import naive_st_construction
 
 # from pystr.lcp import lcp_from_sa
 # from pystr.sais import sais
@@ -23,8 +25,6 @@ from stralg.suffix_tree.suffix_tree import (  # lcp_st_construction,
     Inner,
     Leaf,
     SuffixTree,
-    mccreight_st_construction,
-    naive_st_construction,
 )
 from stralg.views import Alphabet, String
 
