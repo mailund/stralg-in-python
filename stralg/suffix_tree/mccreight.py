@@ -56,36 +56,35 @@ def z_node(root: Inner, x: memoryview, i: int, v: Leaf) -> Leaf | ZLoc:
         # for z
         return ZLoc(z_node=p.suffix_link, w=v.edge_label if p is not root else x[i:])
 
-    else:
-        # Otherwise, we need to fast scan to find z_node.
-        # p can't be the root here, because the root has a
-        # suffix link
-        assert p.parent is not None, "p can't be the root."
-        assert p.parent.suffix_link, "Parent's parent must have a suffix link"
+    # Otherwise, we need to fast scan to find z_node.
+    # p can't be the root here, because the root has a
+    # suffix link
+    assert p.parent is not None, "p can't be the root."
+    assert p.parent.suffix_link, "Parent's parent must have a suffix link"
 
-        # Jumping to pp.suffix_link gets us past a, so now we get z and w
-        # (with the special case if p is the root) and then we are
-        # ready to scan for z_node
-        z = p.edge_label if p.parent is not root else p.edge_label[1:]
-        w = v.edge_label
+    # Jumping to pp.suffix_link gets us past a, so now we get z and w
+    # (with the special case if p is the root) and then we are
+    # ready to scan for z_node
+    z = p.edge_label if p.parent is not root else p.edge_label[1:]
+    w = v.edge_label
 
-        # Fast scan to new starting point, z_node. Short-circuit if the mismatch is on an edge
-        match tree_fastsearch(p.parent.suffix_link, z):
-            case edge(z_node, match, rest, _) if len(rest) > 0:
-                # mismatch on the edge so we can break immidiately
-                v = break_edge(i, z_node, len(match), w)
-                p.suffix_link = v.parent
-                # continue  # Process next suffix...
-                return v
+    # Fast scan to new starting point, z_node. Short-circuit if the mismatch is on an edge
+    match tree_fastsearch(p.parent.suffix_link, z):
+        case edge(z_node, match, rest, _) if len(rest) > 0:
+            # mismatch on the edge so we can break immidiately
+            v = break_edge(i, z_node, len(match), w)
+            p.suffix_link = v.parent
+            # We have v directly in this case
+            return v
 
-            case edge(z_node, _, _, _) | node(z_node, _):
-                # mostly for type checking, but it should always be true
-                assert is_inner(z_node)
+        case edge(z_node, _, _, _) | node(z_node, _):
+            # mostly for type checking, but it should always be true
+            assert is_inner(z_node)
 
-                # If we landed on a node, then that is p's suffix link
-                p.suffix_link = z_node
+            # If we landed on a node, then that is p's suffix link
+            p.suffix_link = z_node
 
-        return ZLoc(z_node, w)
+    return ZLoc(z_node, w)
 
 
 def v_node(root: Inner, x: memoryview, i: int, v: Leaf) -> Leaf:
