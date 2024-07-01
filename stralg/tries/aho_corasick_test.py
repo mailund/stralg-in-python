@@ -2,8 +2,8 @@
 
 from test.helpers import fibonacci_string, pick_random_patterns, random_string
 
-from stralg.aho_corasick import aho_corasick
 from stralg.searching import plain
+from stralg.tries.aho_corasick import aho_corasick
 
 
 def test_abc() -> None:
