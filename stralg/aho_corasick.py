@@ -8,13 +8,12 @@ from .trie import Trie, TrieNode, depth_first_trie
 
 def annotate_trie(trie: Trie) -> Trie:
     """Extend trie with suffix links and out-lists."""
-    queue = deque[TrieNode]([trie.root])
+    queue = deque([trie.root])
     while queue:
         n = queue.popleft()
-        for out_edge, child in n.children.items():
-            set_suffix_link(child, out_edge)
+        for label, child in n.children.items():
+            set_suffix_link(child, label)
             queue.append(child)
-
     return trie
 
 
