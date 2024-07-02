@@ -18,7 +18,7 @@ def _cmp_results(
     """
     res = list(sorted(results))
     exp = list(sorted(expected))
-    assert len(res) == len(exp)
+    assert len(res) == len(exp), f"{res} != {exp}"
     for r, e in zip(res, exp):
         assert (
             r == e

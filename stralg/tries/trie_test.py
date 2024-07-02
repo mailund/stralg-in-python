@@ -3,7 +3,7 @@
 from test.helpers import random_string
 from typing import Callable as Fn
 
-from stralg.trie import Trie, TrieNode, depth_first_trie
+from stralg.tries.trie import Trie, TrieNode, depth_first_trie
 
 # FIXME: make ... a variadic tuple of strings...
 TrieConstructor = Fn[..., Trie]
