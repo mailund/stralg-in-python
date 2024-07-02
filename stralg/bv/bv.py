@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from array import array
-from typing import Any
+from typing import Any, Iterator
 
 TYPECODE = "B"  # Q
 BYTE_BITS = 8
@@ -103,19 +103,31 @@ def match_bv(p: str, a: str) -> IntBitVector:
     return IntBitVector(len(p), bits)
 
 
+def shift_and(x: str, p: str) -> Iterator[int]:
+    t = {a: match_bv(p, a) for a in set(p)}
+    bv = IntBitVector(len(p), 0)
+    for i, a in enumerate(x):
+        bv = ((bv << 1) + 1) & t[a]
+        if bv[len(p) - 1]:
+            yield i - len(p) + 1
+
+
+def shift_or(x: str, p: str) -> Iterator[int]:
+    t = {a: ~match_bv(p, a) for a in set(p)}
+    bv = IntBitVector(len(p), ~0)
+    for i, a in enumerate(x):
+        bv = (bv << 1) | t[a]
+        if not bv[len(p) - 1]:
+            yield i - len(p) + 1
+
+
 p = "aba"
 x = "ababa"
 
-t = {a: match_bv(p, a) for a in set(p)}
-bv = IntBitVector(len(p), 0)
-for i, a in enumerate(x):
-    bv = ((bv << 1) + 1) & t[a]
-    print(f"bv{i} = {bv}", "*" if bv[len(p) - 1] else "")
 
+for i in shift_and(x, p):
+    print(i)
 print()
-
-t = {a: ~match_bv(p, a) for a in set(p)}
-bv = IntBitVector(len(p), ~0)
-for i, a in enumerate(x):
-    bv = (bv << 1) | t[a]
-    print(f"bv{i} = {bv}", "*" if not bv[len(p) - 1] else "")
+for i in shift_or(x, p):
+    print(i)
+print()
