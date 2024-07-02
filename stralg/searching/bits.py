@@ -69,6 +69,7 @@ def shift_or(x: str, p: str) -> Iterator[int]:
 
     bv = IntBitVector(len(p), ~0)
     for i, a in enumerate(x):
+        print(a, t[a])
         bv = (bv << 1) | t[a]
         if not bv[len(p) - 1]:
             yield i - len(p) + 1
