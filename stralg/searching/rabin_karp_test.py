@@ -1,14 +1,6 @@
 from test.search import search_suite
 
-from .rabin_karp import Word, h, hash_str, rabin_karp
-
-
-def test_lrot() -> None:
-    h = Word(2 + 8 + 32, ws=8)
-    assert format(h.w, "08b") == "00101010"
-    assert format(h.lrot(1).w, "08b") == "01010100"
-    assert format(h.lrot(2).w, "08b") == "10101000"
-    assert format(h.lrot(3).w, "08b") == "01010001"
+from .rabin_karp import h, hash_str, rabin_karp, rabin_karp_rem, rabin_karp_sentinel
 
 
 def test_hash() -> None:
@@ -27,3 +19,11 @@ def test_hash() -> None:
 
 def test_rabin_karp_search() -> None:
     search_suite(rabin_karp)
+
+
+def test_rabin_karp_sentinel_search() -> None:
+    search_suite(rabin_karp_sentinel)
+
+
+def test_rabin_karp_rem_search() -> None:
+    search_suite(rabin_karp_rem)
