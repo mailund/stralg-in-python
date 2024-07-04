@@ -13,6 +13,9 @@ class Word:
         self.mask = (1 << ws) - 1
         self.w = w & self.mask
 
+    def __str__(self) -> str:
+        return format(self.w, "0x")
+
     def __eq__(self, value: object) -> bool:
         return isinstance(value, Word) and self.w == value.w and self.ws == value.ws
 
