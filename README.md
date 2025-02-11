@@ -1,2 +1,3 @@
-# stralg-in-python
+# `stralg-in-python`
+
 String algorithms in Python
