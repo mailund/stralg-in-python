@@ -5,4 +5,5 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "pytest.command": "python -m pytest",
+    "makefile.configureOnOpen": false,
 }
