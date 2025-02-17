@@ -21,6 +21,7 @@ def kmp(x: str, p: str) -> Iterator[int]:
         # match one up, if we can...
         if a == p[j]:
             j += 1
-            if j == len(p):
-                yield i - len(p) + 1
-                j = ba[j - 1]
+
+        if j == len(p):
+            yield i - len(p) + 1
+            j = ba[j - 1]
